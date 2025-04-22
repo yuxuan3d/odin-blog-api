@@ -1,101 +1,27 @@
 import React, { useState, useEffect } from 'react';
 
 function AuthComponent() {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [token, setToken] = useState(null);
     const [blogs, setBlogs] = useState([]);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
-    // Set the token in the state when it's stored in localStorage
     useEffect(() => {
-        const storedToken = localStorage.getItem('authToken');
-        if (storedToken) {
-          // Set the token in the state
-          setToken(storedToken);
-        }
-      }, []);
-
-    // Fetch blogs when the token changes
-    useEffect(() => {
-        if (token) {
-            fetchAllBlogs();
-        } else {
-            setBlogs([]);
-        }
-    }, [token]);
-
-    const handleLogin = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-
-        try {
-            const response = await fetch('http://localhost:3000/api/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    username: username,
-                    password: password
-                }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || `HTTP error! status: ${response.status}`);
-            }
-
-            if (data.token) {
-                localStorage.setItem('authToken', data.token);
-                setToken(data.token);
-                setUsername('');
-                setPassword('');
-            } else {
-                throw new Error('No token returned from server');
-            }
-        } catch (error) {
-            console.error('Error logging in:', error);
-            setError(error.message || 'Login failed. Check credentials');
-            setToken(null);
-            localStorage.removeItem('authToken');
-        } finally {
-            setLoading(false);
-        }
-    } 
-
-    const handleLogout =  () => {
-        localStorage.removeItem('authToken');
-        setToken(null);
-        setUsername('');
-        setPassword('');
-        setError('');
-        setBlogs([]);
-    }
-
-    const LoginForm = () => {
-    return (
-        <form onSubmit={handleLogin}>
-            <h2>Login</h2>
-            <label htmlFor="username">Username:</label>
-            <input type="text" name="username" id="username" value={username} onChange={(e) => setUsername(e.target.value)} />
-            <br />
-            <label htmlFor="password">Password:</label>
-            <input type="password" name="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            <br />
-            <button type="submit" disabled={loading}>{loading ? 'Logging in...' : 'Login'}</button>
-        </form>
-    )
+        console.log("Component mounted, fetching blogs...");
+        fetchAllBlogs();
+    }, []);
+   
+    const handlePosts =  () => {
+        window.open('http://localhost:5000', '_blank');
     }
 
     const BlogsList = () => {
+        if (loading) return <p>Loading blogs...</p>;
+        if (!loading && blogs.length === 0 && !error) return <p>No blogs found.</p>;
+        if (error) return null;
+
         return (
             <div>
-                <button onClick={handleLogout} disabled={loading}>Logout</button>
-                {loading && <p>Loading blogs...</p>}
+                <button onClick={handlePosts} disabled={loading}>Edit Posts</button>
                 <ul>
                     {blogs.map((blog) => (
                         <div key={blog.id}>
@@ -111,31 +37,13 @@ function AuthComponent() {
     }
 
     const fetchAllBlogs = async () => {
-        const currentToken = localStorage.getItem('authToken');
-        if (!currentToken) {
-            setError('You must be logged in to fetch blogs');
-            handleLogout()
-            return;
-        }
-
         setLoading(true);
         setError('');
 
         try {
             const response = await fetch('http://localhost:3000/api/blogs', {
                 method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${currentToken}`
-                },
             });
-
-            if (response.status === 401) {
-                console.warn('Received 401 Unauthorized. Token likely expired or invalid.');
-                handleLogout();
-                setError('Your session has expired. Please log in again.');
-                return;
-            }
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
@@ -156,7 +64,7 @@ function AuthComponent() {
   return (
     <div>
       <h1>BlogMate</h1>
-      {!token ? LoginForm() : BlogsList()}
+      {BlogsList()}
       {error && <p style={{ color: 'red' }}>Error:{error}</p>}
     </div>
   );

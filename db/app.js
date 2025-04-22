@@ -52,7 +52,7 @@ app.post('/api/login', (req, res, next) => {
         };
         const secret = process.env.JWT_SECRET;
         const options = {
-          expiresIn: '30000', // Token expiration time (e.g., 1 hour)
+          expiresIn: '1hr', // Token expiration time (e.g., 1 hour)
         };
   
         const token = jwt.sign(payload, secret, options);
@@ -63,9 +63,7 @@ app.post('/api/login', (req, res, next) => {
     })(req, res, next); // <--- Important: call the middleware function returned by passport.authenticate
 });
 
-app.get('/api/blogs',
-    passport.authenticate('jwt', { session: false }), // Protect this route
-    async (req, res, next) => {
+app.get('/api/blogs', async (req, res, next) => {
       try {
         const userBlogs = await prisma.blog.findMany({
           orderBy: { createdAt: 'desc' },
@@ -117,6 +115,68 @@ app.post('/api/createUser', async (req, res, next) => {
   }
 });
 
+app.post('/api/createPost',passport.authenticate('jwt', { session: false }),
+    async (req, res, next) => {
+        const userId = req.user.id;
+        try {
+            const { title, post} = req.body;
+            const newBlog = await prisma.blog.create({
+                data: {
+                    title: title,
+                    post: post,
+                    author: { 
+                        connect: { id: userId },
+                    },
+                },
+            });
+
+            res.status(201).json(newBlog);
+
+        } catch {
+            console.error("Error creating post:", err);
+            res.status(500).json({ message: 'Error creating post' });
+        }
+    })
+
+    app.put('/api/blogs/:id', passport.authenticate('jwt', { session: false }), async (req, res) => {
+        const authenticatedUserId = req.user.id;
+        const blogId = parseInt(req.params.id);
+        const { title, post } = req.body;
+
+        if (isNaN(blogId)) {
+            return res.status(400).json({ message: 'Invalid blog ID format.' });
+        }
+        if (!title || !post) {
+            return res.status(400).json({ message: 'Title and post content are required.' });
+        }
+
+        try {
+            const blog = await prisma.blog.findUnique({
+                where: { id: blogId },
+            });
+
+            if (!blog) {
+                return res.status(404).json({ message: 'Post not found.' });
+            }
+
+            if (blog.userId !== authenticatedUserId) {
+                return res.status(403).json({ message: 'You are not authorized to edit this post.' });
+            }
+
+            const updatedBlog = await prisma.blog.update({
+                where: { id: blogId },
+                data: {
+                    title: title,
+                    post: post,
+                },
+            });
+
+            res.json(updatedBlog);
+        } catch (err) {
+            console.error("Error updating post:", err);
+            res.status(500).json({ message: 'Error updating post' });
+        }
+    })
 
 const PORT = 3000
 app.listen(PORT, () => {
