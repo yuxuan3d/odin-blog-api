@@ -50,7 +50,6 @@ function AuthComponent() {
             }
 
             if (data.token) {
-                console.log('token:', data.token);
                 localStorage.setItem('authToken', data.token);
                 setToken(data.token);
                 setUsername('');
@@ -68,6 +67,15 @@ function AuthComponent() {
         }
     } 
 
+    const handleLogout =  () => {
+        localStorage.removeItem('authToken');
+        setToken(null);
+        setUsername('');
+        setPassword('');
+        setError('');
+        setBlogs([]);
+    }
+
     const LoginForm = () => {
     return (
         <form onSubmit={handleLogin}>
@@ -79,7 +87,6 @@ function AuthComponent() {
             <input type="password" name="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} />
             <br />
             <button type="submit" disabled={loading}>{loading ? 'Logging in...' : 'Login'}</button>
-            {error && <p style={{ color: 'red' }}>{error}</p>}
         </form>
     )
     }
@@ -87,11 +94,11 @@ function AuthComponent() {
     const BlogsList = () => {
         return (
             <div>
+                <button onClick={handleLogout} disabled={loading}>Logout</button>
                 {loading && <p>Loading blogs...</p>}
-                {error && <p style={{ color: 'red' }}>{error}</p>} {/* Display errors */}
                 <ul>
                     {blogs.map((blog) => (
-                        <div>
+                        <div key={blog.id}>
                             <h3>{blog.title}</h3>
                             <p>{blog.post}</p>
                             <p>Author: {blog.author.username}</p>
@@ -107,7 +114,7 @@ function AuthComponent() {
         const currentToken = localStorage.getItem('authToken');
         if (!currentToken) {
             setError('You must be logged in to fetch blogs');
-            setError(null);
+            handleLogout()
             return;
         }
 
@@ -123,13 +130,19 @@ function AuthComponent() {
                 },
             });
 
+            if (response.status === 401) {
+                console.warn('Received 401 Unauthorized. Token likely expired or invalid.');
+                handleLogout();
+                setError('Your session has expired. Please log in again.');
+                return;
+            }
+
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
             }
 
             const fetchedBlogs = await response.json();
-            console.log('fetched blogs:', fetchedBlogs);
             setBlogs(fetchedBlogs);
         }  catch (error) {
             console.error('Error fetching blogs:', error);
